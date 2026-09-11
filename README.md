@@ -7,9 +7,9 @@ Zero-comments policy tools for agent-maintained repositories: source files carry
 A literal-aware Go comment scanner with a structural load-bearing guard (AST parse → strip → reprint for `--write`, so compiler directives and other load-bearing comment forms survive by construction).
 
 ```
-cd go && go run . --check            # exit 1 listing violating files
-cd go && go run . --write            # strip comments in place (AST reprint)
-cd go && go run . --stats            # per-file comment counts
+go run ./go --check            # exit 1 listing violating files
+go run ./go --write            # strip comments in place (AST reprint)
+go run ./go --stats            # per-file comment counts
 ```
 
 - Exemptions: toolchain-honored directives only (`//go:build`, `// +build`, `//go:embed` line-start forms, `//go:generate`, `//nolint`).

@@ -1,0 +1,3 @@
+config/scrub_linux.go
+gh/client.go
+gh/oauth.go

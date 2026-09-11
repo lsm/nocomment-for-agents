@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const allowlistPath = "tools/nocomment/allowlist.txt"
+const allowlistPath = "go/allowlist.txt"
 
 func main() {
 	check := flag.Bool("check", false, "exit 1 for comments outside the allowlist")

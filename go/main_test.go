@@ -167,16 +167,16 @@ func TestCheckAllowlistMissingFile(t *testing.T) {
 }
 
 func TestGoFilesListsTrackedSources(t *testing.T) {
-	files, err := goFiles("../..")
+	files, err := goFiles("..")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range files {
-		if path == "tools/nocomment/main.go" {
+		if path == "go/main.go" {
 			return
 		}
 	}
-	t.Fatalf("goFiles() = %d files, missing tools/nocomment/main.go", len(files))
+	t.Fatalf("goFiles() = %d files, missing go/main.go", len(files))
 }
 
 func TestLoadBearingMatchesToolchainDirectiveGrammar(t *testing.T) {

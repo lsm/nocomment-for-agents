@@ -1361,3 +1361,21 @@ func TestScanStillExemptsMarkersInPosition(t *testing.T) {
 		})
 	}
 }
+
+func TestScanCountsProseInsideAnExampleThatIsNotTheOutputBlock(t *testing.T) {
+	src := "package p\n\nfunc ExampleF() {\n\t// Output: mid-body prose go/doc does not honour\n\t// and which is therefore countable\n\tf()\n\t// Output:\n\t// one\n}\n"
+	if got := len(scan([]byte(src))); got != 2 {
+		t.Fatalf("scan() = %d spans, want 2: only the body's last group is the output block", got)
+	}
+}
+
+func TestScanRequiresGoDocExampleNaming(t *testing.T) {
+	lower := "package p\n\nfunc Examplefoo() {\n\tf()\n\t// Output:\n\t// one\n}\n"
+	if got := len(scan([]byte(lower))); got != 2 {
+		t.Fatalf("scan() = %d spans, want 2: Examplefoo is not an example to go/doc", got)
+	}
+	upper := "package p\n\nfunc ExampleFoo() {\n\tf()\n\t// Output:\n\t// one\n}\n"
+	if got := len(scan([]byte(upper))); got != 0 {
+		t.Fatalf("scan() = %d spans, want 0", got)
+	}
+}

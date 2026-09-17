@@ -13,7 +13,7 @@ go run ./go --stats            # per-file comment counts
 ```
 
 - Exemptions: toolchain-honored directives only (`//go:build`, `// +build`, `//go:embed` line-start forms, `//go:generate`, `//nolint`).
-- `--check` additionally skips what `--write` can never remove, and only where the toolchain honors it: an `// Output:` block inside an `Example` function body, a `Code generated ... DO NOT EDIT.` header before the package clause, a canonical import comment on the package clause, and a cgo preamble. These are executable, not prose — counting them would strand a file on the allowlist with no edit that could clear it. Position is part of the test, so prose that merely opens with "Output:" is counted like any other sentence, as are directive lookalikes.
+- `--check` additionally skips what `--write` can never remove, and only where the toolchain honors it: an `// Output:` block as the last comment group in an `Example` function body (go/doc's own rule, name test included), a `Code generated ... DO NOT EDIT.` header before the package clause, a canonical import comment on the package clause, and a cgo preamble. These are executable, not prose — counting them would strand a file on the allowlist with no edit that could clear it. Position is part of the test, so prose that merely opens with "Output:" is counted like any other sentence, as are directive lookalikes.
 - Ratchet: `allowlist.txt` (one path per line, shrink-only) — `--check` fails on comments in any file NOT on the allowlist; a file's entry is removed when its comments are.
 - CI: `go run ./go --check` as a pipeline step; this repo runs it on itself in `.github/workflows/ci.yml`.
 

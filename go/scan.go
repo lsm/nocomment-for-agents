@@ -171,13 +171,73 @@ func comments(src []byte) []comment {
 }
 
 func scan(src []byte) []span {
+	unremovable := unremovableComments(src)
 	var spans []span
 	for _, c := range comments(src) {
-		if c.name == "" {
+		if c.name == "" && !unremovable[c.span.start] {
 			spans = append(spans, c.span)
 		}
 	}
 	return spans
+}
+
+func unremovableComments(src []byte) map[int]bool {
+	found := comments(src)
+	marked := map[int]bool{}
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "", src, parser.ParseComments|parser.SkipObjectResolution)
+	if err != nil {
+		for _, c := range found {
+			if toolchainMarker(string(src[c.span.start:c.span.end])) {
+				marked[c.span.start] = true
+			}
+		}
+		return marked
+	}
+	for _, g := range f.Comments {
+		carries := false
+		for _, c := range g.List {
+			if toolchainMarker(c.Text) {
+				carries = true
+				break
+			}
+		}
+		if !carries {
+			continue
+		}
+		for _, c := range g.List {
+			marked[fset.Position(c.Pos()).Offset] = true
+		}
+	}
+	for _, g := range cgoGroups(f) {
+		for _, c := range g.List {
+			marked[fset.Position(c.Pos()).Offset] = true
+		}
+	}
+	return marked
+}
+
+func cgoGroups(f *ast.File) []*ast.CommentGroup {
+	var groups []*ast.CommentGroup
+	ast.Inspect(f, func(n ast.Node) bool {
+		gd, ok := n.(*ast.GenDecl)
+		if !ok || gd.Tok != token.IMPORT {
+			return true
+		}
+		for _, spec := range gd.Specs {
+			imp, ok := spec.(*ast.ImportSpec)
+			if !ok || imp.Path == nil || imp.Path.Value != `"C"` {
+				continue
+			}
+			for _, g := range []*ast.CommentGroup{imp.Doc, imp.Comment, gd.Doc} {
+				if g != nil {
+					groups = append(groups, g)
+				}
+			}
+		}
+		return true
+	})
+	return groups
 }
 
 func plusBuildEnd(src []byte) int {

@@ -91,6 +91,9 @@ func loadBearing(src []byte, sp span) bool {
 	if strings.HasPrefix(body, "line ") || strings.HasPrefix(body, "extern ") || strings.HasPrefix(body, "export ") {
 		return true
 	}
+	if body == "nolint" || strings.HasPrefix(body, "nolint ") {
+		return true
+	}
 	colon := strings.IndexByte(body, ':')
 	if colon <= 0 || colon+1 >= len(body) {
 		return false
@@ -452,6 +455,11 @@ func strip(src []byte) ([]byte, error) {
 				continue
 			}
 			if !bytes.Contains(res, []byte(c.Text)) {
+				if spaced := "// " + strings.TrimPrefix(c.Text, "//"); bytes.Contains(res, []byte(spaced)) {
+					return nil, fmt.Errorf("refusing to write: go/printer would rewrite %q as %q, which deactivates it; "+
+						"only Go's own directive grammar (//word:word, //line, //extern, //export) survives a reprint verbatim, "+
+						"so write it with a colon (e.g. //nolint:all) and this file becomes strippable", c.Text, spaced)
+				}
 				return nil, errors.New("refusing to write: a comment the keep rules preserve would not survive the reprint")
 			}
 		}
@@ -651,11 +659,15 @@ func canonicalImportComment(text string) bool {
 	if !ok {
 		return false
 	}
-	if rest == "" {
-		return true
+	rest = strings.TrimLeft(rest, " \t")
+	if len(rest) < 2 || (rest[0] != '"' && rest[0] != '`') {
+		return false
 	}
-	r, _ := utf8.DecodeRuneInString(rest)
-	return !(unicode.IsLetter(r) || '0' <= r && r <= '9' || r == '_')
+	end := strings.IndexByte(rest[1:], rest[0])
+	if end <= 0 {
+		return false
+	}
+	return strings.TrimSpace(rest[end+2:]) == ""
 }
 
 type cgoPreamble struct {

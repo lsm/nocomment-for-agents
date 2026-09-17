@@ -1361,3 +1361,49 @@ func TestScanStillExemptsMarkersInPosition(t *testing.T) {
 		})
 	}
 }
+
+func TestStripKeepsAColonNolintAndRefusesABareOne(t *testing.T) {
+	for _, directive := range []string{"//nolint:gosec", "//nolint:gosec,govet", "//nolint:all"} {
+		src := "package p\n\n" + directive + "\nvar X = 1\n\n// gone\nvar Y = 2\n"
+		out, err := strip([]byte(src))
+		if err != nil {
+			t.Fatalf("strip(%q) = %v", directive, err)
+		}
+		got := string(out)
+		if !strings.Contains(got, directive) {
+			t.Fatalf("strip(%q) = %q, want the directive kept: golangci-lint honours it where it sits", directive, got)
+		}
+		if strings.Contains(got, "// gone") {
+			t.Fatalf("strip(%q) = %q, want the ordinary comment gone", directive, got)
+		}
+	}
+
+	src := "package p\n\n//nolint\nvar X = 1\n\n// gone\nvar Y = 2\n"
+	_, err := strip([]byte(src))
+	if err == nil {
+		t.Fatal("strip() wrote a file holding a bare //nolint; go/printer rewrites it as \"// nolint\", which deactivates it")
+	}
+	if !strings.Contains(err.Error(), "//nolint:all") {
+		t.Fatalf("strip() = %v, want the refusal to name the colon form as the remedy", err)
+	}
+}
+
+func TestScanCountsProseThatMerelyStartsWithImport(t *testing.T) {
+	for _, prose := range []string{
+		"// import the harness here and you get a cycle",
+		"// imports are resolved by the registry",
+		"// import \"C\" would make this cgo, which it is not — trailing prose, so not canonical",
+	} {
+		src := "package p\n\n" + prose + "\nvar X = 1\n"
+		if got := len(scan([]byte(src))); got != 1 {
+			t.Fatalf("scan(%q) = %d spans, want 1: prose is not a canonical import comment", prose, got)
+		}
+		out, err := strip([]byte(src))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(out), prose) {
+			t.Fatalf("strip(%q) kept it; only a quoted import path is load-bearing", prose)
+		}
+	}
+}

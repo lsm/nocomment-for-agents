@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 // Ported from lsm/HyperNeo scripts/strip-comments.ts. Strips every line,
-// block, and JSDoc comment from tracked .ts sources; --check exits
+// block, and JSDoc comment from tracked .ts/.tsx/.mts/.cts sources; --check exits
 // non-zero when any remain (CI). Functional directives are exempt:
 // shebangs, /// <reference>, @ts-*, lint pragmas, coverage ignores.
 // Comment detection skips string, template, and regex literals as identified
-// by the TypeScript parser (typescript 6, the JS compiler); every `//` or `/*`
+// by the TypeScript parser (the `typescript` package); every `//` or `/*`
 // outside a literal is unambiguously a comment, so nothing inside a literal is
 // ever touched and a comment is found regardless of which token it precedes.
 
 import { execSync } from 'node:child_process'
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
-import ts from 'typescript6'
+import ts from 'typescript'
 
 const KEEP_PATTERNS = [
   /^#!/,
@@ -23,10 +23,27 @@ const KEEP_PATTERNS = [
   /@public\b/,
   /(v8|istanbul|c8) ignore/,
   /knip-ignore/,
+  /prettier-ignore/,
+  /@(license|preserve)\b/,
+  /@jsx(ImportSource|Frag|Runtime)?\b/,
+  /webpack(Ignore|ChunkName|Mode|Prefetch|Preload|Exports|Include|Exclude)\b/,
+  /@vite-ignore/,
+  /\bsourceMappingURL=/,
 ]
 
+export function scriptKindName(fileName) {
+  return ts.ScriptKind[scriptKind(fileName)]
+}
+
+function scriptKind(fileName) {
+  if (fileName.endsWith('.tsx')) return ts.ScriptKind.TSX
+  if (fileName.endsWith('.jsx')) return ts.ScriptKind.JSX
+  if (fileName.endsWith('.js') || fileName.endsWith('.mjs') || fileName.endsWith('.cjs')) return ts.ScriptKind.JS
+  return ts.ScriptKind.TS
+}
+
 function parse(text, fileName) {
-  return ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, false, ts.ScriptKind.TS)
+  return ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, false, scriptKind(fileName))
 }
 
 function collectCommentRanges(text, fileName) {
@@ -160,7 +177,7 @@ function main() {
   if (filesIdx !== -1) {
     files = args.slice(filesIdx + 1).filter((a) => !a.startsWith('--'))
   } else {
-    files = execSync("git ls-files '*.ts'", { encoding: 'utf8' })
+    files = execSync("git ls-files '*.ts' '*.tsx' '*.mts' '*.cts'", { encoding: 'utf8' })
       .split('\n')
       .map((f) => f.trim())
       .filter(Boolean)

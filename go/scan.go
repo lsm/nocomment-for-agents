@@ -383,7 +383,7 @@ func strip(src []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	classified := map[int]bool{}
+	classified := unremovableComments(src)
 	for _, c := range comments(src) {
 		if c.name != "" || c.load {
 			classified[c.span.start] = true
@@ -394,7 +394,7 @@ func strip(src []byte) ([]byte, error) {
 	for _, g := range f.Comments {
 		for _, c := range g.List {
 			start := fset.Position(c.Pos()).Offset
-			if classified[start] || toolchainMarker(c.Text) || protectedIn(protected, start, fset.Position(c.End()).Offset) {
+			if classified[start] || protectedIn(protected, start, fset.Position(c.End()).Offset) {
 				keep[g] = true
 				break
 			}

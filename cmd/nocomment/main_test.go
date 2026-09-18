@@ -1415,7 +1415,6 @@ func TestCheckAndWriteAgreeOnOutOfPositionMarkers(t *testing.T) {
 func TestScanFollowsGoDocOnExampleSignatures(t *testing.T) {
 	for name, src := range map[string]string{
 		"takes a parameter": "package p\n\nimport \"io\"\n\nfunc ExampleF(w io.Writer) {\n\tg(w)\n\t// Output:\n\t// one\n}\n",
-		"returns a value":   "package p\n\nfunc ExampleF() error {\n\tg()\n\t// Output:\n\t// one\n\treturn nil\n}\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			f, err := parser.ParseFile(token.NewFileSet(), "", src, parser.ParseComments|parser.SkipObjectResolution)
@@ -1429,5 +1428,12 @@ func TestScanFollowsGoDocOnExampleSignatures(t *testing.T) {
 				t.Fatalf("scan() = %d spans, want 2: go/doc ignores it, so the block is prose", got)
 			}
 		})
+	}
+}
+
+func TestScanKeepsExemptingAnExampleWhoseSignatureOnlyReturns(t *testing.T) {
+	src := "package p\n\nfunc ExampleF() error {\n\tg()\n\t// Output:\n\t// one\n\treturn nil\n}\n"
+	if got := len(scan([]byte(src))); got != 0 {
+		t.Fatalf("scan() = %d spans, want 0: go/doc honours this shape on go1.24 and ignores it on go1.27, so the exemption must not turn on results", got)
 	}
 }

@@ -1422,7 +1422,6 @@ func TestScanCountsProseThatMerelyStartsWithImport(t *testing.T) {
 		}
 	}
 }
-
 func TestScanCountsProseInsideAnExampleThatIsNotTheOutputBlock(t *testing.T) {
 	src := "package p\n\nfunc ExampleF() {\n\t// Output: mid-body prose go/doc does not honour\n\t// and which is therefore countable\n\tf()\n\t// Output:\n\t// one\n}\n"
 	if got := len(scan([]byte(src))); got != 2 {
@@ -1458,49 +1457,28 @@ func TestCheckAndWriteAgreeOnOutOfPositionMarkers(t *testing.T) {
 	}
 }
 
-func TestScanAndStripAgreeOnExamplesGoDocIgnores(t *testing.T) {
-	for _, decl := range []string{
-		"func ExampleWithParam(x int)",
-		"func ExampleWithResult() error",
+func TestScanFollowsGoDocOnExampleSignatures(t *testing.T) {
+	for name, src := range map[string]string{
+		"takes a parameter": "package p\n\nimport \"io\"\n\nfunc ExampleF(w io.Writer) {\n\tg(w)\n\t// Output:\n\t// one\n}\n",
 	} {
-		body := "\t// Output: ok\n"
-		if strings.Contains(decl, "error") {
-			body += "\treturn nil\n"
-		}
-		src := "package p\n\n" + decl + " {\n" + body + "}\n"
-
-		fset := token.NewFileSet()
-		f, err := parser.ParseFile(fset, "x_test.go", src, parser.ParseComments)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(doc.Examples(f)) != 0 {
-			t.Fatalf("go/doc accepts %q; this test is built on it not doing so", decl)
-		}
-
-		if got := len(scan([]byte(src))); got != 1 {
-			t.Fatalf("scan(%q) = %d spans, want 1: go/doc ignores this declaration, so nothing honours its Output block", decl, got)
-		}
-		out, err := strip([]byte(src))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if strings.Contains(string(out), "Output: ok") {
-			t.Fatalf("strip kept the Output block in %q, which --check counts: the file is stranded", decl)
-		}
+		t.Run(name, func(t *testing.T) {
+			f, err := parser.ParseFile(token.NewFileSet(), "", src, parser.ParseComments|parser.SkipObjectResolution)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if examples := doc.Examples(f); len(examples) != 0 {
+				t.Fatalf("premise: go/doc must ignore this function, got %+v", examples)
+			}
+			if got := len(scan([]byte(src))); got != 2 {
+				t.Fatalf("scan() = %d spans, want 2: go/doc ignores it, so the block is prose", got)
+			}
+		})
 	}
 }
 
-func TestScanAndStripKeepARealExamplesOutputBlock(t *testing.T) {
-	src := "package p\n\nfunc ExamplePlain() {\n\t// Output: ok\n}\n"
+func TestScanKeepsExemptingAnExampleWhoseSignatureOnlyReturns(t *testing.T) {
+	src := "package p\n\nfunc ExampleF() error {\n\tg()\n\t// Output:\n\t// one\n\treturn nil\n}\n"
 	if got := len(scan([]byte(src))); got != 0 {
-		t.Fatalf("scan = %d spans, want 0: go/doc honours this Output block", got)
-	}
-	out, err := strip([]byte(src))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(out), "Output: ok") {
-		t.Fatal("strip removed an Output block the toolchain reads")
+		t.Fatalf("scan() = %d spans, want 0: go/doc honours this shape on go1.24 and ignores it on go1.27, so the exemption must not turn on results", got)
 	}
 }

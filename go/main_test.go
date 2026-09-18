@@ -523,21 +523,36 @@ func TestStripKeepsExampleOutput(t *testing.T) {
 	}
 }
 
-func TestStripRefusesExampleActivation(t *testing.T) {
-	src := "package p\n\nfunc ExampleFoo() {\n\tprintln(\"hi\")\n\n\t// Output:\n\t// hi\n\n\t// trailing note\n}\n\n// gone\nvar X = 1\n"
-	premise := func(name, want string) {
+func TestStripNeverChangesExampleExecution(t *testing.T) {
+	classify := func(src string) (string, bool) {
 		f, err := parser.ParseFile(token.NewFileSet(), "", src, parser.ParseComments|parser.SkipObjectResolution)
 		if err != nil {
-			t.Fatal(err)
+			return "", false
 		}
 		examples := doc.Examples(f)
-		if len(examples) != 1 || examples[0].Output != want {
-			t.Fatalf("premise: go/doc must classify the example as %s, got %+v", name, examples)
+		if len(examples) != 1 {
+			return "", false
 		}
+		return examples[0].Output, true
 	}
-	premise("compiled-only", "")
-	if _, err := strip([]byte(src)); err == nil {
-		t.Fatal("strip() accepted a rewrite that would make a compiled-only example run")
+	for name, src := range map[string]string{
+		"output block is not the body's last group": "package p\n\nfunc ExampleFoo() {\n\tprintln(\"hi\")\n\n\t// Output:\n\t// hi\n\n\t// trailing note\n}\n\n// gone\nvar X = 1\n",
+		"a kept group would become the last one":    "package p\n\nfunc ExampleFoo() {\n\tprintln(\"hi\")\n\n\t// Output:\n\t//nolint:errcheck\n\n\t// trailing note\n}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			before, ok := classify(src)
+			if !ok || before != "" {
+				t.Fatalf("premise: go/doc must classify the example as compiled-only, got %q ok=%v", before, ok)
+			}
+			out, err := strip([]byte(src))
+			if err != nil {
+				return
+			}
+			after, ok := classify(string(out))
+			if !ok || after != before {
+				t.Fatalf("strip() made a compiled-only example run: %q -> %q ok=%v", before, after, ok)
+			}
+		})
 	}
 }
 
@@ -1377,5 +1392,22 @@ func TestScanRequiresGoDocExampleNaming(t *testing.T) {
 	upper := "package p\n\nfunc ExampleFoo() {\n\tf()\n\t// Output:\n\t// one\n}\n"
 	if got := len(scan([]byte(upper))); got != 0 {
 		t.Fatalf("scan() = %d spans, want 0", got)
+	}
+}
+
+func TestCheckAndWriteAgreeOnOutOfPositionMarkers(t *testing.T) {
+	src := "package p\n\n// Output: prose that opens like a marker and is not one\n// because nothing here is an example\nfunc F() {}\n"
+	before := len(comments([]byte(src)))
+	counted := len(scan([]byte(src)))
+	out, err := strip([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	removed := before - len(comments(out))
+	if counted != removed {
+		t.Fatalf("--check counted %d comment(s) and --write removed %d; a file counted but never stripped can never leave the allowlist", counted, removed)
+	}
+	if counted != 2 {
+		t.Fatalf("scan() = %d spans, want 2", counted)
 	}
 }

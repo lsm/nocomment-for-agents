@@ -1431,9 +1431,37 @@ func TestScanFollowsGoDocOnExampleSignatures(t *testing.T) {
 	}
 }
 
-func TestScanKeepsExemptingAnExampleWhoseSignatureOnlyReturns(t *testing.T) {
+func TestExampleExemptionTracksTheRunningToolchain(t *testing.T) {
+	for _, src := range []string{
+		"package p\n\nfunc ExampleF() error {\n\tg()\n\t// Output:\n\t// one\n\treturn nil\n}\n",
+		"package p\n\nfunc ExampleF() {\n\tg()\n\t// Output:\n\t// one\n}\n",
+		"package p\n\nimport \"io\"\n\nfunc ExampleF(w io.Writer) {\n\tg(w)\n\t// Output:\n\t// one\n}\n",
+		"package p\n\nfunc Examplefoo() {\n\tg()\n\t// Output:\n\t// one\n}\n",
+		"package p\n\nfunc ExampleA() {\n\tg()\n\t// Output:\n\t// one\n}\n\nfunc Helper() {\n\tg()\n}\n",
+	} {
+		f, err := parser.ParseFile(token.NewFileSet(), "", src, parser.ParseComments|parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := 2
+		if len(doc.Examples(f)) != 0 {
+			want = 0
+		}
+		if got := len(scan([]byte(src))); got != want {
+			t.Fatalf("scan(%q) = %d spans, want %d: the exemption must agree with this toolchain's go/doc, not with a signature rule written down beside it", src, got, want)
+		}
+	}
+}
+
+func TestExampleExemptionAgreesWithWriteOnEveryToolchain(t *testing.T) {
 	src := "package p\n\nfunc ExampleF() error {\n\tg()\n\t// Output:\n\t// one\n\treturn nil\n}\n"
-	if got := len(scan([]byte(src))); got != 0 {
-		t.Fatalf("scan() = %d spans, want 0: go/doc honours this shape on go1.24 and ignores it on go1.27, so the exemption must not turn on results", got)
+	before := len(comments([]byte(src)))
+	counted := len(scan([]byte(src)))
+	out, err := strip([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed := before - len(comments(out)); counted != removed {
+		t.Fatalf("--check counted %d comment(s) and --write removed %d; go/doc's answer for this shape moved between go1.25 and go1.27, and the two halves must move with it together", counted, removed)
 	}
 }

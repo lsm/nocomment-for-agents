@@ -237,29 +237,25 @@ func unremovableGroup(fset *token.FileSet, f *ast.File, g *ast.CommentGroup) boo
 func inExampleBody(fset *token.FileSet, f *ast.File, g *ast.CommentGroup) bool {
 	for _, decl := range f.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Recv != nil || fn.Body == nil || !exampleName(fn.Name.Name) {
+		if !ok || fn.Recv != nil || fn.Body == nil {
 			continue
 		}
-		if fn.Type.Params != nil && len(fn.Type.Params.List) != 0 {
+		if last := lastGroupIn(fset, f, fn.Body); last == nil || last != g {
 			continue
 		}
-		if last := lastGroupIn(fset, f, fn.Body); last != nil && last == g {
-			return true
-		}
+		return honoursExample(f, fn)
 	}
 	return false
 }
 
-func exampleName(name string) bool {
-	rest, ok := strings.CutPrefix(name, "Example")
-	if !ok {
-		return false
+func honoursExample(f *ast.File, fn *ast.FuncDecl) bool {
+	probe := &ast.File{Name: f.Name, Decls: []ast.Decl{fn}, Comments: f.Comments}
+	for _, ex := range doc.Examples(probe) {
+		if ex.Code == ast.Node(fn.Body) {
+			return true
+		}
 	}
-	if rest == "" {
-		return true
-	}
-	r, _ := utf8.DecodeRuneInString(rest)
-	return !unicode.IsLower(r)
+	return false
 }
 
 func lastGroupIn(fset *token.FileSet, f *ast.File, body *ast.BlockStmt) *ast.CommentGroup {

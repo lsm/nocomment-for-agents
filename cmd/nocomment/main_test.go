@@ -1411,3 +1411,23 @@ func TestCheckAndWriteAgreeOnOutOfPositionMarkers(t *testing.T) {
 		t.Fatalf("scan() = %d spans, want 2", counted)
 	}
 }
+
+func TestScanFollowsGoDocOnExampleSignatures(t *testing.T) {
+	for name, src := range map[string]string{
+		"takes a parameter": "package p\n\nimport \"io\"\n\nfunc ExampleF(w io.Writer) {\n\tg(w)\n\t// Output:\n\t// one\n}\n",
+		"returns a value":   "package p\n\nfunc ExampleF() error {\n\tg()\n\t// Output:\n\t// one\n\treturn nil\n}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			f, err := parser.ParseFile(token.NewFileSet(), "", src, parser.ParseComments|parser.SkipObjectResolution)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if examples := doc.Examples(f); len(examples) != 0 {
+				t.Fatalf("premise: go/doc must ignore this function, got %+v", examples)
+			}
+			if got := len(scan([]byte(src))); got != 2 {
+				t.Fatalf("scan() = %d spans, want 2: go/doc ignores it, so the block is prose", got)
+			}
+		})
+	}
+}

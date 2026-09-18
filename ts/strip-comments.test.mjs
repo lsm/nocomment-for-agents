@@ -78,3 +78,25 @@ test('tsx and jsx files are parsed as such', () => {
     assert.equal(scriptKindName(name), kind, name)
   }
 })
+
+test('a // inside JSX text is content, not a comment', () => {
+  const src = [
+    'export function App() {',
+    '  return (',
+    '    <div>',
+    '      <a href="https://example.com">https://example.com</a>',
+    '      <p>Rate: 50//50 split</p>',
+    '    </div>',
+    '  )',
+    '}',
+    '',
+  ].join('\n')
+  assert.equal(stripComments(src, 'App.tsx'), src)
+})
+
+test('a real comment in a tsx file is still removed', () => {
+  const src = '// goes\nexport const A = () => <div>keeps // this</div>\n'
+  const out = stripComments(src, 'App.tsx')
+  assert.ok(!out.includes('// goes'))
+  assert.ok(out.includes('keeps // this'))
+})

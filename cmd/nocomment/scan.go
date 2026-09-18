@@ -240,6 +240,12 @@ func inExampleBody(fset *token.FileSet, f *ast.File, g *ast.CommentGroup) bool {
 		if !ok || fn.Recv != nil || fn.Body == nil || !exampleName(fn.Name.Name) {
 			continue
 		}
+		if fn.Type.Params != nil && len(fn.Type.Params.List) > 0 {
+			continue
+		}
+		if fn.Type.Results != nil && len(fn.Type.Results.List) > 0 {
+			continue
+		}
 		if last := lastGroupIn(fset, f, fn.Body); last != nil && last == g {
 			return true
 		}

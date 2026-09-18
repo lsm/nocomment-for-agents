@@ -1457,3 +1457,50 @@ func TestCheckAndWriteAgreeOnOutOfPositionMarkers(t *testing.T) {
 		t.Fatalf("scan() = %d spans, want 2", counted)
 	}
 }
+
+func TestScanAndStripAgreeOnExamplesGoDocIgnores(t *testing.T) {
+	for _, decl := range []string{
+		"func ExampleWithParam(x int)",
+		"func ExampleWithResult() error",
+	} {
+		body := "\t// Output: ok\n"
+		if strings.Contains(decl, "error") {
+			body += "\treturn nil\n"
+		}
+		src := "package p\n\n" + decl + " {\n" + body + "}\n"
+
+		fset := token.NewFileSet()
+		f, err := parser.ParseFile(fset, "x_test.go", src, parser.ParseComments)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(doc.Examples(f)) != 0 {
+			t.Fatalf("go/doc accepts %q; this test is built on it not doing so", decl)
+		}
+
+		if got := len(scan([]byte(src))); got != 1 {
+			t.Fatalf("scan(%q) = %d spans, want 1: go/doc ignores this declaration, so nothing honours its Output block", decl, got)
+		}
+		out, err := strip([]byte(src))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(out), "Output: ok") {
+			t.Fatalf("strip kept the Output block in %q, which --check counts: the file is stranded", decl)
+		}
+	}
+}
+
+func TestScanAndStripKeepARealExamplesOutputBlock(t *testing.T) {
+	src := "package p\n\nfunc ExamplePlain() {\n\t// Output: ok\n}\n"
+	if got := len(scan([]byte(src))); got != 0 {
+		t.Fatalf("scan = %d spans, want 0: go/doc honours this Output block", got)
+	}
+	out, err := strip([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(out), "Output: ok") {
+		t.Fatal("strip removed an Output block the toolchain reads")
+	}
+}

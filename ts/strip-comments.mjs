@@ -97,7 +97,8 @@ function collectLiteralSpans(text, fileName) {
       ts.isTemplateHead(node) ||
       ts.isTemplateMiddle(node) ||
       ts.isTemplateTail(node) ||
-      ts.isRegularExpressionLiteral(node)
+      ts.isRegularExpressionLiteral(node) ||
+      ts.isJsxText(node)
     ) {
       spans.push({ start: node.getStart(sf), end: node.end })
     }

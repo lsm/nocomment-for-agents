@@ -1,0 +1,14 @@
+{
+  "name": "nocomment-for-agents",
+  "private": true,
+  "type": "module",
+  "description": "Zero-comments policy tools: the TypeScript stripper.",
+  "scripts": {
+    "test": "node --test ts/*.test.mjs",
+    "strip": "node ts/strip-comments.mjs",
+    "check": "node ts/strip-comments.mjs --check"
+  },
+  "dependencies": {
+    "typescript": "^5.6.0"
+  }
+}
